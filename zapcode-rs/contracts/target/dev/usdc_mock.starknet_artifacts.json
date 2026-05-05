@@ -1,0 +1,1 @@
+{"version":1,"contracts":[{"id":"37824eicjahta","package_name":"usdc_mock","contract_name":"UsdcMock","module_path":"usdc_mock::usdc_mock::UsdcMock","artifacts":{"sierra":"usdc_mock_UsdcMock.contract_class.json","casm":"usdc_mock_UsdcMock.compiled_contract_class.json"}}]}

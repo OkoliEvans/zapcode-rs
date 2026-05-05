@@ -1,0 +1,7 @@
+/target
+/backend/target
+/.env
+/backend/.env
+frontend/.env
+frontend/node_modules
+frontend/dist
