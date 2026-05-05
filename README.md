@@ -1,10 +1,12 @@
 # Zapcode-rs
 
-> USDC payment QR system for merchants on Starknet, built with a Rust backend and Starkzap-rs.
+> USDC payment QR system for merchants on Starknet, rebuilt with a Rust backend and Starkzap-rs.
 
-Merchants sign up with email, get a Starknet wallet, and immediately have a QR code they can print and place anywhere. Buyers pay directly on the Zapcode platform with just an email login. Zapcode watches for incoming USDC transfers and notifies the merchant in real time via dashboard and email.
+Merchants sign up with email, get a Starknet wallet, and immediately have a QR code they can print and place anywhere. Buyers pay directly on the Zapcode platform with just an email login — no wallet app, no seed phrase, no gas. Zapcode watches for incoming USDC transfers and notifies the merchant in real time via dashboard and email.
 
-Zapcode never holds funds. All wallets are owned by users via Privy.
+**Zapcode never holds funds.** All wallets are owned by their users via Privy. Zapcode is purely monitoring, notification, and dashboard.
+
+**Zero transaction fees.** All buyer payments are fully gas-sponsored by AVNU paymaster. Neither party ever needs to hold STRK or ETH.
 
 ---
 
@@ -12,24 +14,25 @@ Zapcode never holds funds. All wallets are owned by users via Privy.
 
 ### For Merchants
 
-- Email signup through Privy
-- Starknet wallet created automatically on onboarding
-- Print-ready QR code pointing to the merchant pay page
-- Optional QR logo upload via ImgBB
-- Live dashboard with balance, recent payments, and local currency reference
-- Faucet button that mints 10 test USDC to the merchant wallet
-- Email notifications for confirmed inbound payments
-- Send USDC from Settings to any Starknet address
-- Offramp guide with country-specific cash-out suggestions
-- Non-custodial: funds land directly in the merchant wallet
+- **Email signup** — no MetaMask, no seed phrases. Sign up like any web2 app.
+- **Instant wallet** — Starknet wallet created automatically on signup, prefunded with STRK for deployment.
+- **QR code** — print-ready PNG, downloadable in one tap. Works offline — the QR encodes the wallet address directly.
+- **Custom QR logo** — upload a business logo to embed in the center of the QR code via ImgBB.
+- **Live dashboard** — see every payment the moment it lands. Balance shown in both USDC and local currency equivalent.
+- **Email notifications** — payment received email sent automatically on every confirmed transaction.
+- **Faucet** — mint 10 test USDC directly to the connected merchant wallet from the dashboard. Handles account deployment automatically if the wallet is new.
+- **Send tokens** — transfer USDC to any Starknet address directly from Settings.
+- **Multi-country** — balance displayed in merchant's local currency (KES, NGN, GHS, RWF, and 100+ others).
+- **Offramp guide** — step-by-step cash-out instructions with country-specific platform recommendations.
+- **Zero fees** — all in-platform transfers are gas-sponsored. Merchants never need to hold STRK.
 
 ### For Buyers
 
-- Public pay page at `/pay/:merchantAddress`
-- Email login through Privy with deterministic wallet reuse
-- Sponsored payments via AVNU paymaster through Starkzap-rs
-- Automatic account readiness: prefund STRK, deploy if needed, execute transfer
-- External wallet fallback: pay from Argent, Braavos, or any Starknet wallet
+- **Pay on platform** — log in with email, get a wallet automatically, pay without leaving the page.
+- **Pay with existing wallet** — copy address and pay from Argent, Braavos, or any Starknet wallet.
+- **Local currency context** — live exchange rate shown on the pay page so buyers can calculate amounts.
+- **Zero fees** — all buyer transactions are fully gas-sponsored by AVNU. Buyers never need STRK or ETH.
+- **Transaction receipt** — Voyager explorer link shown after payment completes.
 
 ---
 
@@ -37,37 +40,43 @@ Zapcode never holds funds. All wallets are owned by users via Privy.
 
 ### Merchant Flow
 
-1. Merchant signs in with Privy
-2. `/api/merchants/onboard` creates a Privy Starknet wallet and stores `wallet_id`, `wallet_address`, and `public_key`
-3. Treasury prefunds STRK for the one-time account deployment
-4. Merchant downloads or shares the QR code
-5. Buyer pays USDC to the merchant wallet
-6. Worker watches Starknet transfer events and records new payments
-7. Dashboard refreshes and email notification is sent
+1. Sign up with email → Starknet wallet created + STRK prefunded automatically
+2. Optionally upload logo → download branded QR code → print and place anywhere
+3. Buyer scans QR → payment lands in wallet → dashboard + email notification fires
+4. Go to Settings → Send tokens to exchange → cash out to bank or mobile money
+
+### Faucet Flow
+
+1. Merchant clicks **Faucet** on the dashboard
+2. Backend loads the connected merchant Privy wallet
+3. If undeployed, treasury sends STRK for deployment
+4. Starkzap-rs deploys the account with `FeeMode::UserPays` if needed
+5. Merchant wallet calls `ZUSDC.mint(...)` via `FeeMode::Paymaster`
+6. UI shows `10 USDC minted to 0x...` and refreshes the dashboard balance
 
 ### Buyer Payment Flow
 
-1. Buyer opens `/pay/:merchantAddress`
-2. Buyer logs in with Privy if paying on-platform
-3. `/api/wallet/starknet` creates or returns the buyer wallet
-4. Backend ensures the buyer account is deployed
-5. Frontend builds a USDC transfer call
-6. `/api/wallet/paymaster/execute` routes through Starkzap-rs — deploy if needed, then execute with AVNU paymaster
-7. Payment lands directly in the merchant wallet
+1. Scan QR → land on Zapcode pay page
+2. Log in with email or Google (Privy)
+3. Zapcode creates a Starknet wallet silently, prefunds with STRK, deploys account
+4. Enter amount → `/api/wallet/paymaster/execute` routes through Starkzap-rs
+5. Deploy with `FeeMode::UserPays` if needed, then execute with AVNU paymaster
+6. Payment lands directly in the merchant wallet. Gas fully sponsored.
 
----
+Both on-platform and external wallet options are always available on the same pay page.
 
-## Architecture
+### Cash Out Guide (Merchants)
 
-Zapcode-rs uses [Starkzap-rs](https://github.com/MistLabs/starkzap-rs) as its core transaction SDK. The key path in `src/routes/wallet.rs`:
+1. Go to **Settings → Send tokens** → transfer USDC to your exchange deposit address
+2. On the exchange, sell USDC for local currency
+3. Withdraw to bank or mobile money (M-Pesa, MTN MoMo, Airtel Money, etc.)
 
-- Privy signer loaded from stored `wallet_id`, `wallet_address`, and `public_key`
-- Starkzap-rs onboards the account with the Argent X preset
-- Undeployed accounts are prefunded with STRK by treasury
-- Deployment via `FeeMode::UserPays`
-- Token execution via `FeeMode::Paymaster(PaymasterConfig::from_env())`
-
-AVNU sponsors execution calls. New accounts still need STRK for their one-time deployment — treasury handles this. Treasury does not mint faucet tokens.
+Platform recommendations shown per country:
+- **Kenya** → Binance P2P (KES/M-Pesa) + Yellow Card
+- **Nigeria** → Binance P2P (NGN) + Resolva + Yellow Card
+- **Ghana, Rwanda, Uganda, Tanzania** → Binance P2P + Yellow Card
+- **South Africa, Egypt** → Binance P2P + MoonPay
+- **All other countries** → MoonPay + Yellow Card + Transak
 
 ---
 
@@ -75,54 +84,54 @@ AVNU sponsors execution calls. New accounts still need STRK for their one-time d
 
 ```text
 zapcode-rs/
-├── Cargo.toml
+├── Cargo.toml                         # Rust workspace — backend + worker + Starkzap-rs
 ├── migrations/
 │   └── 20240101000000_initial_schema.sql
 ├── contracts/
 │   ├── Scarb.toml
 │   └── src/
-│       └── usdc_mock.cairo
+│       └── usdc_mock.cairo            # Sepolia ZUSDC mock (6 decimals), displayed as USDC in UI
 ├── src/
-│   ├── main.rs
+│   ├── main.rs                        # Axum API server
 │   ├── bin/
-│   │   └── worker.rs
+│   │   └── worker.rs                  # Starknet event watcher process
 │   ├── db/
-│   │   ├── mod.rs
-│   │   └── schema.rs
-│   ├── models.rs
+│   │   ├── mod.rs                     # Diesel async pool
+│   │   └── schema.rs                  # Diesel schema
+│   ├── models.rs                      # Merchant, Transaction, Buyer models
 │   ├── routes/
-│   │   ├── merchants.rs
-│   │   ├── transactions.rs
-│   │   ├── wallet.rs
-│   │   ├── rates.rs
-│   │   └── stats.rs
+│   │   ├── merchants.rs               # Onboard, profile, public merchant, QR
+│   │   ├── transactions.rs            # History, stats, latest polling
+│   │   ├── wallet.rs                  # Privy wallets, faucet, Starkzap paymaster execute
+│   │   ├── rates.rs                   # USDC to fiat rates
+│   │   └── stats.rs                   # Public landing stats
 │   ├── services/
-│   │   ├── email.rs
-│   │   ├── privy.rs
-│   │   ├── qr.rs
-│   │   ├── rates.rs
-│   │   ├── starknet.rs
-│   │   └── watcher.rs
+│   │   ├── email.rs                   # SMTP email templates
+│   │   ├── privy.rs                   # Privy auth, wallet creation, raw sign
+│   │   ├── qr.rs                      # QR PNG generation
+│   │   ├── rates.rs                   # FX providers and cache
+│   │   ├── starknet.rs                # STRK prefund and token helpers
+│   │   └── watcher.rs                 # Transfer event polling
 │   └── utils/
-│       └── auth.rs
+│       └── auth.rs                    # Privy JWT auth extractor
 └── frontend/
-    ├── package.json
+    ├── package.json                   # Vite + React 19
     ├── vite.config.ts
     └── src/
-        ├── main.tsx
-        ├── App.tsx
-        ├── services/api.ts
-        ├── context/
-        ├── hooks/
-        ├── components/
+        ├── main.tsx                   # PrivyProvider, MerchantProvider, ToastProvider
+        ├── App.tsx                    # Routes and auth guards
+        ├── services/api.ts            # Typed fetch wrapper
+        ├── context/                   # Merchant and toast contexts
+        ├── hooks/                     # Balance and transaction polling
+        ├── components/                # Dashboard, layout, and UI components
         └── pages/
             ├── LandingPage.tsx
             ├── OnboardingPage.tsx
             ├── OverviewPage.tsx
             ├── PaymentsPage.tsx
             ├── QRPage.tsx
-            ├── SettingsPage.tsx
-            └── PayPage.tsx
+            ├── SettingsPage.tsx       # Profile, send USDC, offramp guide
+            └── PayPage.tsx            # Buyer scan and pay page
 ```
 
 ---
@@ -132,7 +141,7 @@ zapcode-rs/
 | Method | Path | Auth | Description |
 |---|---|---|---|
 | GET | `/health` | No | Server health check |
-| GET | `/api/merchants/me` | Yes | Current merchant profile plus FX |
+| GET | `/api/merchants/me` | Yes | Current merchant profile plus FX rate |
 | POST | `/api/merchants/onboard` | Yes | Create merchant profile and Privy wallet |
 | PATCH | `/api/merchants/me` | Yes | Update business name, currency, country, logo |
 | GET | `/api/merchants/:id` | No | Public merchant info for pay page |
@@ -171,11 +180,11 @@ zapcode-rs/
 - Rust stable
 - PostgreSQL
 - Node.js and pnpm
-- Privy app
-- Starknet Sepolia RPC URL
-- AVNU API key
-- Treasury Starknet account with STRK for deployment prefunds
-- Local Starkzap-rs checkout at `/Users/MAC/Rust/starkzap-rs` or update `Cargo.toml` to use a git dependency
+- Privy account → [privy.io](https://privy.io)
+- Starknet Sepolia RPC URL (Alchemy `v0_10` endpoint recommended)
+- AVNU API key → [portal.avnu.fi](https://portal.avnu.fi)
+- Treasury Starknet account with STRK for deployment prefunds (standard Argent X, no guardian)
+- Starkzap-rs — pulled automatically from [crates.io](https://crates.io/crates/starkzap-rs) via Cargo
 
 ### 1. Database
 
@@ -249,17 +258,64 @@ Open `http://localhost:5173`.
 
 ---
 
+## Architecture
+
+### Starkzap-rs Powers All Transactions
+
+Built on [Starkzap-rs](https://github.com/OkoliEvans/starkzap-rs) ([crates.io](https://crates.io/crates/starkzap-rs)) — a Rust SDK for seamless Starknet wallet integration.
+
+The core transaction path lives in `src/routes/wallet.rs`:
+
+- Privy signer loaded from stored `wallet_id`, `wallet_address`, and `public_key`
+- Starkzap-rs onboards the account with the Argent X preset
+- Undeployed accounts are prefunded with STRK by treasury
+- Deployment via `FeeMode::UserPays`
+- Token execution via `FeeMode::Paymaster(PaymasterConfig::from_env())`
+
+```toml
+starkzap-rs = { version = "0.1.0", features = ["full"] }
+```
+
+### Zero Fees — Fully Sponsored Transactions
+
+AVNU sponsors all buyer `execute()` calls. The only gas cost in the system is the one-time account deployment per new wallet — covered by treasury STRK prefunds. After deployment, everything is free forever.
+
+### Treasury STRK Prefunding
+
+- New merchants: STRK prefunded at onboarding
+- New buyers: STRK prefunded before returning wallet to frontend
+- Faucet: treasury prefunds + deploys if needed, then merchant wallet calls `mint()`
+
+Treasury requirements: standard Argent X, no guardian, lowercase hex address.
+
+### Non-Custodial by Design
+
+Zapcode never holds or touches user funds. All wallets are owned by users via Privy. Funds land directly in merchant wallets — Zapcode is purely monitoring, notification, and UX.
+
+### Worker-Based Event Monitoring
+
+The worker polls Starknet `Transfer` events for the configured ZUSDC token, matches recipient addresses to active merchants, inserts transactions, and sends payment emails. RPC cost stays near $0 up to thousands of merchants.
+
+### ZUSDC Displayed as USDC
+
+The backend watches `ZUSDC_ADDRESS` on Sepolia and the frontend labels it `USDC` — matching the intended product language before mainnet deployment.
+
+---
+
 ## Tech Stack
 
 | Layer | Tech |
 |---|---|
 | Backend | Rust, Axum, Tokio |
 | Database | PostgreSQL, Diesel, diesel-async |
-| Wallet SDK | Starkzap-rs |
+| Wallet SDK | Starkzap-rs (local crate) |
 | Starknet SDK | starknet-rs `0.17` |
 | Auth & Wallets | Privy |
-| Paymaster | AVNU |
-| Worker | Rust binary polling Starknet events |
+| Paymaster | AVNU (all transactions sponsored) |
+| Token | Sepolia ZUSDC mock (6 decimals), displayed as USDC |
+| Worker | Rust binary polling Starknet Transfer events |
 | Email | lettre SMTP |
-| QR | `qrcode` + `image` |
+| QR | `qrcode` + `image` — PNG with optional logo overlay |
 | Frontend | Vite, React 19, TypeScript, Tailwind CSS v4 |
+| FX Rates | CoinGecko API (60s cache) |
+| Package manager | pnpm |
