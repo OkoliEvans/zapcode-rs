@@ -65,6 +65,11 @@ export function useBalance() {
     fetchBalance()
     const refresh = () => { void fetchBalance() }
     window.addEventListener('zapcode:balance-refresh', refresh)
+    const pendingRefresh = sessionStorage.getItem('zapcode:balance-refresh-pending')
+    if (pendingRefresh) {
+      sessionStorage.removeItem('zapcode:balance-refresh-pending')
+      window.setTimeout(refresh, 250)
+    }
     const interval = setInterval(fetchBalance, 30_000)
     return () => {
       cancelled = true

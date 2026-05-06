@@ -89,6 +89,7 @@ export function LandingPage() {
       if (!token) throw new Error("Please sign in again");
       const result = await api.wallet.faucet(token);
       toast(`10 USDC minted to ${shortAddress(result.address)}.`, "success");
+      sessionStorage.setItem("zapcode:balance-refresh-pending", String(Date.now()));
       window.dispatchEvent(new Event("zapcode:balance-refresh"));
       navigate("/dashboard");
     } catch (e: any) {
